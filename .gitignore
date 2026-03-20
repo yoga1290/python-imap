@@ -1,0 +1,12 @@
+__pycache__
+.cache 
+.config 
+.ipynb_checkpoints 
+.ipython 
+.jupyter 
+.local 
+.local/share 
+.local/share/jupyter
+
+data
+docker-stats-monitor.log

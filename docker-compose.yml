@@ -1,0 +1,67 @@
+services:
+
+  notebook-interactive:
+    container_name: notebook-interactive
+    build:
+      context: ./
+      dockerfile: ./ci/docker-jupyter/Dockerfile
+    env_file:
+      - .env
+    # I don't need auth token here since this is for local use only
+    # See  https://jupyter-docker-stacks.readthedocs.io/en/latest/using/recipes.html#run-server-inside-an-already-secured-environment-i-e-with-no-token
+    command: ["start-notebook.py", "--IdentityProvider.token=''"]
+    ports:
+      - 8888:8888
+    volumes:
+      - ./:/home/jovyan
+
+  notebook-on-docker:
+    # quay.io/jupyter/base-notebook:ubuntu-24.04 + dependencies
+    container_name: notebook-on-docker
+    build:
+      context: ./
+      dockerfile: ./ci/docker-jupyter/Dockerfile
+    env_file:
+      - .env
+    command: bash -c 
+      "jupyter execute notebook.ipynb --allow-errors --inplace 
+        && jupyter nbconvert --to asciidoc notebook.ipynb
+        && mv notebook.asciidoc readme.adoc"
+    working_dir: /home/jovyan
+    volumes:
+      - ./:/home/jovyan
+
+  python-on-docker:
+    # python:3.13-alpine + dependencies
+    image: ghcr.io/yoga1290/python-imap:26.03
+    container_name: python-on-docker
+    build:
+      context: ./
+      dockerfile: ./ci/docker-python/Dockerfile
+    env_file:
+      - .env
+    volumes:
+      - ${OUTPUT_DIR}:/usr/app/data
+    working_dir: /usr/app
+
+  monitor:
+    image: docker:27-cli
+    # container_name: docker-monitor
+    working_dir: /usr/app
+    volumes:
+      - ./:/usr/app/
+      - /var/run/docker.sock:/var/run/docker.sock
+    entrypoint: ["watch", "-n", "5", "/bin/sh", "/usr/app/docker-stats-monitor.sh"]
+
+  build-and-push-docker-image:
+    image: docker:29-dind
+    environment:
+      GITHUB_REPOSITORY_OWNER: yoga1290
+      GIT_REPOSITORY_NAME: python-imap
+      DOCKER_FILE: ./ci/docker-python/Dockerfile
+      ACCESS_TOKEN: ${GITHUB_TOKEN}
+    command: /bin/sh +x ./ci/publish-docker-image-to-container-registry/publish-docker-image-to-container-registry.sh
+    working_dir: /usr/app
+    volumes:
+      - ./:/usr/app
+      - /var/run/docker.sock:/var/run/docker.sock
